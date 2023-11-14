@@ -1,6 +1,6 @@
 ---
 title: "Caso 3"
-author: "Sebastián Lozano"
+author: "Sebastián Lozano - Jherson Guzman"
 date: "12/11/2023"
 output: html_document
 ---
