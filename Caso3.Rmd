@@ -1,6 +1,6 @@
 ---
 title: "Caso 3"
-author: "Sebasti谩n Lozano - Jherson Guzman"
+author: "Sebasti谩n Lozano"
 date: "12/11/2023"
 output: html_document
 ---
@@ -7350,6 +7350,8 @@ RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
   
   n <- dim(X)[1]
   p <- dim(X)[2] 
+  ID <- diag(x=1,nrow = n,ncol = n)
+  
   
   #calculos previos
   invsigma0 <- solve(sigma0)
@@ -7368,6 +7370,7 @@ RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
   
   sig2_mcmc <- matrix(data = NA, nrow = B-1000, ncol = 1)
   beta_mcmc <- matrix(data = NA, nrow = B-1000, ncol = p)
+  LL <- matrix(data = NA, nrow = B-1000, ncol = 1)
   
   for (b in 1:B) {
     #Actualizar sig2
@@ -7382,17 +7385,19 @@ RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
     betat <- t(beta)
     SSR <- betat %*% XtX %*% beta - 2 * betat %*% XtY + YtY
     
+    
     #Almacenamiento
-    if (b > 1000) {
-      sig2_mcmc <- rbind(sig2,sig2_mcmc)
-      beta_mcmc <- rbind(beta,beta_mcmc)
+       if (b > 1000) {
+      sig2_mcmc[b - 1000,] <- sig2
+      beta_mcmc[b - 1000,] <- beta
+      LL[b - 1000,] <- mvtnorm::dmvnorm(x = Y, mean = X %*% beta, sigma = sig2 * ID, log = TRUE) 
     }
   }
   #salida
   
   BETA <- as.data.frame(beta_mcmc)
   
-  return(list(SIG2 = sig2_mcmc, BETA = BETA))
+  return(list(SIG2 = sig2_mcmc, BETA = BETA, LL = LL))
 }
 ```
 
@@ -7421,12 +7426,30 @@ chainPrevUnitaria <- RegClasica(Y,X,beta0,sigma0,sig20,nu0,B)
 tictoc::toc()
 
 ```
+
+```{r}
+plot(x = 1:10000, y =  unlist(chainPrevUnitaria$LL),type = "p", pch = ".", xlab = "Iteraci贸n", ylab = "Log-verosimilitud")
+
+set.seed(123)
+sample(1:64,5,replace = FALSE)
+#31 15 51 14  3
+plot(chainPrevUnitaria$BETA[,35], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPrevUnitaria$BETA[,15], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPrevUnitaria$BETA[,51], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPrevUnitaria$BETA[,14], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPrevUnitaria$BETA[,3], type = "p", pch = ".", xlab = "Iteraci贸n")
+
+plot(chainPrevUnitaria$SIG2, type = "p", pch = ".", xlab = "Iteraci贸n")
+```
+
 ```{r}
 RegPreviag <- function(y,X,B){
     n <- dim(X)[1]
     p <- dim(X)[2]
     g <- n
     nu0 <- 1
+    ID <- diag(x=1,nrow = n,ncol = n)
+    
     
     beta_ols <- solve(t(X)%*%X)%*%t(X)%*%y
     sig2_ols <- sum((y - X%*%beta_ols)^2)/(n-p)
@@ -7440,21 +7463,23 @@ RegPreviag <- function(y,X,B){
        
     sig2_mcmc  <- matrix(data = NA, nrow = B-1000, ncol = 1) 
     beta_mcmc <- matrix(data = NA, nrow = B-1000, ncol = p) 
+    LL <- matrix(data = NA, nrow = B-1000, ncol = 1)
     
     for (b in 1:B) {
     sig2 <- 1/rgamma(1,shape = 0.5*(nu0+n),rate = 0.5*(nu0*sig20+SSRg))
     beta <- c(mvtnorm::rmvnorm(1, Ebeta, sig2*Vbeta))
     
-    if (b > 1000) {
-      sig2_mcmc <- rbind(sig2,sig2_mcmc)
-      beta_mcmc <- rbind(beta,beta_mcmc)
+     if (b > 1000) {
+      sig2_mcmc[b - 1000,] <- sig2
+      beta_mcmc[b - 1000,] <- beta
+      LL[b - 1000,] <- mvtnorm::dmvnorm(x = y, mean = X %*% beta, sigma = sig2 * ID, log = TRUE) 
     }
   }
   
     
   BETA <- as.data.frame(beta_mcmc)
   
-  return(list(SIG2 = sig2_mcmc, BETA = BETA)) 
+  return(list(SIG2 = sig2_mcmc, BETA = BETA,LL=LL)) 
 }
 ```
 
@@ -7464,55 +7489,294 @@ tictoc::tic()
 chainPreviag <- RegPreviag(Y,X,B)
 tictoc::toc()
 ```
+
 ```{r}
-RegRigida <- function(y,X,B,nu0,a,b){
-    n <- dim(X)[1]
-    p <- dim(X)[2]
-    
-    beta_ols <- solve(t(X)%*%X)%*%t(X)%*%y
-    sig2_ols <- sum((y - X%*%beta_ols)^2)/(n-p)
-    s20 <- sig2_ols
+plot(x = 1:10000, y =  unlist(chainPreviag$LL),type = "p", pch = ".", xlab = "Iteraci贸n", ylab = "Log-verosimilitud")
+
+set.seed(122)
+sample(1:64,5,replace = FALSE)
+#48 40  9 58 47
+plot(chainPreviag$BETA[,48], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPreviag$BETA[,40], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPreviag$BETA[,9], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPreviag$BETA[,58], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(chainPreviag$BETA[,47], type = "p", pch = ".", xlab = "Iteraci贸n")
+
+plot(chainPreviag$SIG2, type = "p", pch = ".", xlab = "Iteraci贸n")
+
+```
+
+
+###### Rigida
+
+
+```{r}
+RegresionRigida <- function(y,X,B,s20,nu0,a0,b0){
+   #calculos previos
+   n <- dim(X)[1]
+   p <- dim(X)[2]
+   cont <- 1
+   
+   XtX <- t(X) %*% X
+   Xty <- t(X) %*% y
+   nun <- 0.5*(n+p+nu0)
+   nu0Xs20 <- nu0*s20
+   newa <- (0.5*p)+a0
+   
+   #incializar los par醡etros
+   s2 <- var(y)
+   lambda <- rgamma(1,a0,b0)
+   beta <- rep(0,p)
+   
+   #almacenamiento
+    BETA <- matrix(data = NA, nrow = (B-1000)/10, ncol = p+2) 
+    LL <- matrix(data = NA, nrow = (B-1000)/10, ncol = 1)
+   
+   for (b in 1:B) {
+      #lambda
+     betatbeta <- beta%*%t(beta)
+     lambda <- rgamma(n = 1,shape = newa ,rate = 0.5*(1/s2)*betatbeta+b0)
+     
+    #Beta
+     Vbeta <- solve(1/s2*(diag(lambda,p)+XtX))
+     beta <- mvtnorm::rmvnorm(1,mean = Vbeta%*%(1/s2*Xty),sigma = Vbeta)
+     
+    #sigma^2
+     yhat <- X%*%t(beta) 
+     s2 <- 1/rgamma(n = 1,shape = nun ,rate = 0.5*(nu0Xs20+lambda*betatbeta+sum((y-yhat)^2)))
   
-    sig2_mcmc  <- matrix(data = NA, nrow = B-1000, ncol = 1) 
-    beta_mcmc <- matrix(data = NA, nrow = B-1000, ncol = p)
-    lambda_mcmc  <- matrix(data = NA, nrow = B-1000, ncol = 1) 
+     if(b > 1000 && b %% 10 == 0){
+       BETA[cont,] <- c(beta,s2,lambda)
+       LL[cont] <- mvtnorm::dmvnorm(x = y, mean = yhat, sigma = diag(s2,n), log = TRUE)
+       cont <- cont+1
+     }
+   }
   
-    #valores iniciales 
-    sig2 <- 1/rgamma(1,nu0/2,0.5*(nu0*s20))
-    lambda <- rgamma(1,a,b)
-    
-  for (b in 1:B) {
-    Vbeta <- solve(1/sig2*t(X)%*%X+lambda/sig2*diag(p))
-    beta <- c(mvtnorm::rmvnorm(1,Vbeta%*%(1/sig2*t(X)%*%y),Vbeta))
-    
-    sig2 <- 1/rgamma(1,shape =  0.5*(nu0+n+p),rate = 0.5*(nu0*s20+lambda*t(beta)%*%beta+t(y-X%*%beta)%*%(y-X%*%beta)))
-    
-    lambda <- rgamma(1,shape = a + p/2,rate = 1/sig2*t(beta)%*%beta+b)
-    
-    if (b > 1000) {
-      sig2_mcmc <- rbind(sig2,sig2_mcmc)
-      beta_mcmc <- rbind(beta,beta_mcmc)
-      lambda_mcmc <- rbind(lambda,lambda_mcmc)
-    }
-  }
-  BETA <- as.data.frame(beta_mcmc)
-  
-  return(list(SIG2 = sig2_mcmc, BETA = BETA, LAMBDA = lambda_mcmc)) 
-}    
+  #salida
+  colnames(BETA) <- c(paste0("beta", 1:p), "sigma^2", "lambda")  
+  colnames(LL) <- c("ll")
+  BETA <- as.data.frame(BETA)
+  LL    <- as.data.frame(LL)
+  return(list(BETA = BETA,LL = LL))
+}
 ```
 
 ```{r}
+
+diabetesTRAIN <- as.data.frame(diabetesTRAIN)
+
+y <- diabetesTRAIN$y
+X <- as.matrix(diabetesTRAIN[,-1])
+
+B <- 101000
+k <- 1000
+c <- 10
+
+beta_ols <- solve(t(X)%*%X)%*%t(X)%*%y
+s20 <- sum((y - X%*%beta_ols)^2)/(n-p)
 nu0 <- 1
-a <- 1
-b <- 2
+a0 <- 1
+b0 <- 2
 
-set.seed(42)
+set.seed(1010)
 tictoc::tic()
-chainRegRigida <- RegRigida(Y,X,B,nu0,a,b)
+cadenaRegRigida <- RegresionRigida(y,X,B,s20,nu0,a0,b0)
 tictoc::toc()
-```
-```{r}
+
 
 ```
+
+```{r}
+plot(x = 1:10000, y =  unlist(cadenaRegRigida$LL),type = "p", pch = ".", xlab = "Iteraci髇", ylab = "Log-verosimilitud")
+
+set.seed(121)
+sample(1:64,5,replace = FALSE)
+#52 28 12  7  4
+plot(cadenaRegRigida$BETA[,52], type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA[,28], type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA[,12], type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA[,7], type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA[,4], type = "p", pch = ".", xlab = "Iteraci髇")
+
+plot(cadenaRegRigida$BETA$sigma^2, type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA$lambda, type = "p", pch = ".", xlab="Iteraci髇")
+```
+
+
+```{r}
+# RegRigida <- function(y,X,B,nu0,a,b){
+#     n <- dim(X)[1]
+#     p <- dim(X)[2]
+#     ID <- diag(1,nrow = n,ncol = n)
+#     cont <- 1
+#     
+#     beta_ols <- solve(t(X)%*%X)%*%t(X)%*%y
+#     sig2_ols <- sum((y - X%*%beta_ols)^2)/(n-p)
+#     s20 <- sig2_ols
+#   
+#     sig2_mcmc  <- matrix(data = NA, nrow = (B-1000)/5, ncol = 1) 
+#     beta_mcmc <- matrix(data = NA, nrow = (B-1000)/5, ncol = p)
+#     lambda_mcmc  <- matrix(data = NA, nrow = (B-1000)/5, ncol = 1) 
+#     LL <- matrix(data = NA, nrow = (B-1000)/5, ncol = 1) 
+#     
+#     
+#     #valores iniciales 
+#     sig2 <- 1/rgamma(1,nu0/2,0.5*(nu0*s20))
+#     lambda <- rgamma(1,a,b)
+#     
+#     
+#     
+#   for (b in 1:B) {
+#     Vbeta <- solve(1/sig2*(t(X)%*%X+lambda*diag(p)))
+#     beta <- c(mvtnorm::rmvnorm(1,Vbeta%*%(1/sig2*t(X)%*%y),Vbeta))
+#     
+#     sig2 <- 1/rgamma(1,shape =  0.5*(nu0+n+p),rate = 0.5*(nu0*s20+lambda*t(beta)%*%beta+t(y-X%*%beta)%*%(y-X%*%beta)))
+#     
+#     lambda <- rgamma(1,shape = a + p/2,rate = ((1/(2*sig2))*t(beta)%*%beta+b))
+#     
+# 
+#   if (b > 1000 && (b - 1000) %% 5 == 0) {
+#       sig2_mcmc[cont,] <- sig2
+#       beta_mcmc[cont,] <- beta
+#       LL[cont,] <- mvtnorm::dmvnorm(x = y, mean = X %*% beta, sigma = sig2 * ID, log = TRUE)
+#       lambda_mcmc[cont,] <- lambda
+#       cont <- cont + 1
+#     }
+#     
+#     
+#   }
+#   BETA <- as.data.frame(beta_mcmc)
+#   
+#   return(list(SIG2 = sig2_mcmc, BETA = BETA, LAMBDA = lambda_mcmc,LL = LL)) 
+# }    
+```
+
+```{r}
+# nu0 <- 1
+# a <- 1
+# b <- 2
+# B <- 51000
+# 
+# set.seed(42)
+# tictoc::tic()
+# chainRegRigida <- RegRigida(Y,X,B,nu0,a,b)
+# tictoc::toc()
+# ```
+# ```{r}
+# plot(x = 1:10000, y =  unlist(chainRegRigida$LL),type = "p", pch = ".", xlab = "Iteraci贸n", ylab = "Log-verosimilitud")
+# 
+# set.seed(121)
+# sample(1:64,5,replace = FALSE)
+# #52 28 12  7  4
+# plot(chainRegRigida$BETA[,52], type = "p", pch = ".", xlab = "Iteraci贸n")
+# plot(chainRegRigida$BETA[,28], type = "p", pch = ".", xlab = "Iteraci贸n")
+# plot(chainRegRigida$BETA[,12], type = "p", pch = ".", xlab = "Iteraci贸n")
+# plot(chainRegRigida$BETA[,7], type = "p", pch = ".", xlab = "Iteraci贸n")
+# plot(chainRegRigida$BETA[,4], type = "p", pch = ".", xlab = "Iteraci贸n")
+# 
+# plot(chainRegRigida$SIG2, type = "p", pch = ".", xlab = "Iteraci贸n")
+# plot(chainRegRigida$LAMBDA, type = "p", pch = ".", xlab = "Iteraci贸n")
+```
+
+
+```{r}
+RegErroresCor <- function(y,X,B){
+  #data
+  n <- dim(X)[1]
+  DY <- abs(outer( (1:n),(1:n) ,"-"))
+  p <- dim(X)[2]
+    
+  #valores iniciales
+  library(nlme)
+  lmfit   <-  lm(y ~ -1+X)
+  fit.gls <-  gls(y~X[,2], correlation=corARMA(p=1), method="ML")
+  beta    <-  lmfit$coef
+  s2      <-  summary(lmfit)$sigma^2
+  phi     <-  acf(lmfit$res,plot=FALSE)$acf[2]
+  
+  beta_ols <- solve(t(X)%*%X)%*%t(X)%*%y
+  sig2_ols <- sum((y - X%*%beta_ols)^2)/(n-p)
+  
+  #previa
+  nu0  <-1
+  a <- 0
+  b <- 1
+  s20 <- sig2_ols
+  T0   <-diag(1/1000,nrow=2)
+  
+  #funciones auxiliares
+  tr <- function(X) sum(diag(X))
+  rmvnorm <- function(n,mu,Sigma) 
+  {
+  p<-length(mu)
+  res<-matrix(0,nrow=n,ncol=p)
+  if( n>0 & p>0 ) {
+    E<-matrix(rnorm(n*p),n,p)
+    res<-t(  t(E%*%chol(Sigma)) +c(mu))
+  }
+  res
+  }
+  
+  
+  for (b in 1:B) {
+  
+  #Simular beta
+  Cor    <- phi^DY  
+  iCor   <- solve(Cor)
+  V.beta <- solve( t(X)%*%iCor%*%X/s2 + T0)
+  E.beta <- V.beta%*%( t(X)%*%iCor%*%y/s2)
+  beta   <- t(rmvnorm(1,E.beta,V.beta))
+  
+  # simular sigma^2
+  s2 <- 1/rgamma(1,(nu0+n)/2,(nu0*s20+t(y-X%*%beta)%*%iCor%*%(y-X%*%beta)) /2 )
+  
+  # simular rho (metropolis)
+  # 1. propuesta
+  phi.p <- abs(runif(1,phi-.1,phi+.1))
+  phi.p <- min(phi.p, 2-phi.p)
+  # 2. tasa de aceptacion
+  lr <- -.5*( determinant(phi.p^DY,log=TRUE)$mod - determinant(phi^DY,log=TRUE)$mod + 
+  tr( (y-X%*%beta)%*%t(y-X%*%beta)%*%(solve(phi.p^DY) - solve(phi^DY)) )/s2 )
+  # 3. actualizar valor
+  if( log(runif(1)) < lr ) { 
+    phi <-phi.p
+    ac<-ac+1 
+  } 
+  }
+}
+```
+
+###### Prueba con los enunciados
+
+```{r}
+# Suponiendo que tienes X_test (predictores) y y_test (respuestas) para el conjunto de prueba
+
+# 1. Obtener coeficientes de regresi髇 estimados
+beta_estimado_1 = colMeans(chainPrevUnitaria$BETA) # Para el Modelo 1
+beta_estimado_2 = colMeans(chainPreviag$BETA) # Para el Modelo 2
+
+# 2. Generar predicciones para el conjunto de prueba
+y_pred_1 = X_test %*% beta_estimado_1
+y_pred_2 = X_test %*% beta_estimado_2
+
+# 3. Graficar y calcular el error absoluto medio
+par(mfrow = c(2, 2))
+
+plot(y_test, y_pred_1, main = "Modelo 1")
+abline(0, 1, col = "red")
+eam_1 = mean(abs(y_test - y_pred_1))
+mtext(paste("EAM:", round(eam_1, 3)), side = 3)
+
+plot(y_test, y_pred_2, main = "Modelo 2")
+abline(0, 1, col = "red")
+eam_2 = mean(abs(y_test - y_pred_2))
+mtext(paste("EAM:", round(eam_2, 3)), side = 3)
+
+# Restablecer la configuraci髇 del gr醘ico
+par(mfrow = c(1, 1))
+
+```
+
+
 
 
