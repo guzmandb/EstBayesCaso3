@@ -1,6 +1,6 @@
 ---
 title: "Caso 3"
-author: "Sebasti谩n Lozano"
+author: "Sebasti谩n Lozano - Jherson Guzman"
 date: "12/11/2023"
 output: html_document
 ---
@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-install.packages("mvtnorm")
+#install.packages("mvtnorm")
 library(mvtnorm)
 ```
 
@@ -7428,6 +7428,12 @@ tictoc::toc()
 ```
 
 ```{r}
+save(chainPrevUnitaria,file="chainPrevUnitaria.Rdata")
+```
+
+
+
+```{r}
 plot(x = 1:10000, y =  unlist(chainPrevUnitaria$LL),type = "p", pch = ".", xlab = "Iteraci贸n", ylab = "Log-verosimilitud")
 
 set.seed(123)
@@ -7441,6 +7447,16 @@ plot(chainPrevUnitaria$BETA[,3], type = "p", pch = ".", xlab = "Iteraci贸n")
 
 plot(chainPrevUnitaria$SIG2, type = "p", pch = ".", xlab = "Iteraci贸n")
 ```
+
+#### Puntos
+
+```{r}
+# 1 
+```
+
+
+### Regresi贸n previa g
+
 
 ```{r}
 RegPreviag <- function(y,X,B){
@@ -7523,7 +7539,7 @@ RegresionRigida <- function(y,X,B,s20,nu0,a0,b0){
    nu0Xs20 <- nu0*s20
    newa <- (0.5*p)+a0
    
-   #incializar los par醡etros
+   #incializar los par?metros
    s2 <- var(y)
    lambda <- rgamma(1,a0,b0)
    beta <- rep(0,p)
@@ -7587,19 +7603,19 @@ tictoc::toc()
 ```
 
 ```{r}
-plot(x = 1:10000, y =  unlist(cadenaRegRigida$LL),type = "p", pch = ".", xlab = "Iteraci髇", ylab = "Log-verosimilitud")
+plot(x = 1:10000, y =  unlist(cadenaRegRigida$LL),type = "p", pch = ".", xlab = "Iteraci?n", ylab = "Log-verosimilitud")
 
 set.seed(121)
 sample(1:64,5,replace = FALSE)
 #52 28 12  7  4
-plot(cadenaRegRigida$BETA[,52], type = "p", pch = ".", xlab = "Iteraci髇")
-plot(cadenaRegRigida$BETA[,28], type = "p", pch = ".", xlab = "Iteraci髇")
-plot(cadenaRegRigida$BETA[,12], type = "p", pch = ".", xlab = "Iteraci髇")
-plot(cadenaRegRigida$BETA[,7], type = "p", pch = ".", xlab = "Iteraci髇")
-plot(cadenaRegRigida$BETA[,4], type = "p", pch = ".", xlab = "Iteraci髇")
+plot(cadenaRegRigida$BETA[,52], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(cadenaRegRigida$BETA[,28], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(cadenaRegRigida$BETA[,12], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(cadenaRegRigida$BETA[,7], type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(cadenaRegRigida$BETA[,4], type = "p", pch = ".", xlab = "Iteraci贸n")
 
-plot(cadenaRegRigida$BETA$sigma^2, type = "p", pch = ".", xlab = "Iteraci髇")
-plot(cadenaRegRigida$BETA$lambda, type = "p", pch = ".", xlab="Iteraci髇")
+plot(cadenaRegRigida$BETA$sigma^2, type = "p", pch = ".", xlab = "Iteraci贸n")
+plot(cadenaRegRigida$BETA$lambda, type = "p", pch = ".", xlab="Iteraci贸n")
 ```
 
 
@@ -7751,7 +7767,7 @@ RegErroresCor <- function(y,X,B){
 ```{r}
 # Suponiendo que tienes X_test (predictores) y y_test (respuestas) para el conjunto de prueba
 
-# 1. Obtener coeficientes de regresi髇 estimados
+# 1. Obtener coeficientes de regresi?n estimados
 beta_estimado_1 = colMeans(chainPrevUnitaria$BETA) # Para el Modelo 1
 beta_estimado_2 = colMeans(chainPreviag$BETA) # Para el Modelo 2
 
@@ -7772,7 +7788,7 @@ abline(0, 1, col = "red")
 eam_2 = mean(abs(y_test - y_pred_2))
 mtext(paste("EAM:", round(eam_2, 3)), side = 3)
 
-# Restablecer la configuraci髇 del gr醘ico
+# Restablecer la configuraci?n del gr?fico
 par(mfrow = c(1, 1))
 
 ```
