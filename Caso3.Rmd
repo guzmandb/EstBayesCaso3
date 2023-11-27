@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 #install.packages("mvtnorm")
 library(mvtnorm)
+library(ggplot2)
+
 ```
 
 
@@ -7473,17 +7475,37 @@ diabetesTEST1 <- as.data.frame(diabetesTEST1)
 
 # Calcular las predicciones
 (beta_hat_1 <- colMeans(chainPrevUnitaria$BETA))
-str(diabetesTEST1)
-(Y_pred <- diabetesTEST1 * beta_hat_1)
+
+X_test <- as.matrix(diabetesTEST1[,-1])
+
+Y_pred_1a <- X_test %*% beta_hat_1
 
 
-# Calcular el error absoluto medio (MAE)
-MAE <- mean(abs(diabetesTEST1 - Y_pred))
+plot(diabetesTEST1$y, Y_pred_1a, main = "Predicted vs. Actual", xlab = "Actual", ylab = "Predicted")
+
+
+MAE <- mean(abs(diabetesTEST1$y - Y_pred_1a))
+print(paste("Mean Absolute Error: ", MAE))
+
+
+
+
+
+par(mfrow = c(2, 2))
+
+plot(y_test, y_pred_1, main = "Modelo 1")
+abline(0, 1, col = "red")
+eam_1 = mean(abs(y_test - y_pred_1))
+mtext(paste("EAM:", round(eam_1, 3)), side = 3)
+
+plot(y_test, y_pred_2, main = "Modelo 2")
+abline(0, 1, col = "red")
+eam_2 = mean(abs(y_test - y_pred_2))
+mtext(paste("EAM:", round(eam_2, 3)), side = 3)
 
 # Visualización
 par(mfrow=c(2, 2))  # Configura un layout de 2x2 para los gráficos
-plot(Y_test, Y_pred, main=paste("MAE:", round(MAE, 3)),
-     xlab="y_test", ylab="y_pred", pch=20)
+plot(chainPrevUnitaria )
 abline(0, 1, col="red")  # Línea y_test = y_pred
 
 ```
