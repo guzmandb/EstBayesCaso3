@@ -19,6 +19,7 @@ library(mvtnorm)
 
 ## Carga de datos
 ```{r}
+tictoc::tic()
 diabetesTRAIN <- structure(c(-0.0147028147334805, -1.00052507526656, -0.14441627006678, 
 0.698721189599667, -0.22224434326676, -0.18333030666677, -1.15618122166652, 
 -0.546527981600009, -0.663270091399978, -1.07835314846654, 0.348494860199758, 
@@ -7341,10 +7342,24 @@ diabetesTEST <- structure(c(1.67157210459941, 0.802491953866307, -0.792983546733
     "tc:hdl", "tc:tch", "tc:ltg", "tc:glu", "ldl:hdl", "ldl:tch", 
     "ldl:ltg", "ldl:glu", "hdl:tch", "hdl:ltg", "hdl:glu", "tch:ltg", 
     "tch:glu", "ltg:glu")))
+tictoc::toc()
 ```
+## Limpieza
+
+
+```{r}
+# Eliminar la columna 'sex^2' del conjunto de datos
+diabetesTRAIN1 <- diabetesTRAIN[, !(colnames(diabetesTRAIN) %in% c("sex^2"))]
+diabetesTEST1 <- diabetesTEST[, !(colnames(diabetesTEST) %in% c("sex^2"))]
+```
+
+
+
 ## Modelamiento
 
 ### Regresión clásica previa unitaria
+
+
 ```{r}
 RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
   
@@ -7402,17 +7417,17 @@ RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
 ```
 
 ```{r}
-diabetesTRAIN <- as.data.frame(diabetesTRAIN)
+diabetesTRAIN1 <- as.data.frame(diabetesTRAIN1)
 
-Y <- diabetesTRAIN$y
-X <- as.matrix(diabetesTRAIN[,-1])
-n <- dim(X)[1]
-p <- dim(X)[2]
+(Y <- diabetesTRAIN1$y)
+(X <- as.matrix(diabetesTRAIN1[,-1]))
+(n <- dim(X)[1])
+(p <- dim(X)[2])
 
 beta_ols <- solve(t(X)%*%X)%*%t(X)%*%Y
 sig2_ols <- sum((Y - X%*%beta_ols)^2)/(n-p)
 
-#Dist. previsa unitaria
+#Dist. previa unitaria
 beta0 <- beta_ols
 sigma0 <- n*sig2_ols*solve(t(X)%*%X)
 nu0 <- 1
@@ -7452,6 +7467,25 @@ plot(chainPrevUnitaria$SIG2, type = "p", pch = ".", xlab = "Iteración")
 
 ```{r}
 # 1 
+
+
+diabetesTEST1 <- as.data.frame(diabetesTEST1)
+
+# Calcular las predicciones
+(beta_hat_1 <- colMeans(chainPrevUnitaria$BETA))
+str(diabetesTEST1)
+(Y_pred <- diabetesTEST1 * beta_hat_1)
+
+
+# Calcular el error absoluto medio (MAE)
+MAE <- mean(abs(diabetesTEST1 - Y_pred))
+
+# Visualización
+par(mfrow=c(2, 2))  # Configura un layout de 2x2 para los gráficos
+plot(Y_test, Y_pred, main=paste("MAE:", round(MAE, 3)),
+     xlab="y_test", ylab="y_pred", pch=20)
+abline(0, 1, col="red")  # Línea y_test = y_pred
+
 ```
 
 
@@ -7768,15 +7802,22 @@ RegErroresCor <- function(y,X,B){
 # Suponiendo que tienes X_test (predictores) y y_test (respuestas) para el conjunto de prueba
 
 # 1. Obtener coeficientes de regresi?n estimados
-beta_estimado_1 = colMeans(chainPrevUnitaria$BETA) # Para el Modelo 1
-beta_estimado_2 = colMeans(chainPreviag$BETA) # Para el Modelo 2
+(beta_estimado_1 = colMeans(chainPrevUnitaria$BETA)) # Para el Modelo 1
+(beta_estimado_2 = colMeans(chainPreviag$BETA)) # Para el Modelo 2
+
+beta_estimado_1 = colMeans
+(diabetesTEST1a <- colMeans(diabetesTEST1))
 
 # 2. Generar predicciones para el conjunto de prueba
-y_pred_1 = X_test %*% beta_estimado_1
+y_pred_1 = diabetesTEST1 %*% beta_estimado_1
 y_pred_2 = X_test %*% beta_estimado_2
 
 # 3. Graficar y calcular el error absoluto medio
 par(mfrow = c(2, 2))
+
+
+str(diabetesTEST1)
+strRAIN
 
 plot(y_test, y_pred_1, main = "Modelo 1")
 abline(0, 1, col = "red")
