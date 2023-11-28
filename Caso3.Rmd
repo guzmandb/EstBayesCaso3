@@ -9,11 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Librerias
+
 ```{r}
 #install.packages("mvtnorm")
 library(mvtnorm)
 library(ggplot2)
-
+library(nlme)
 ```
 
 
@@ -7351,8 +7353,10 @@ tictoc::toc()
 
 ```{r}
 # Eliminar la columna 'sex^2' del conjunto de datos
-diabetesTRAIN1 <- diabetesTRAIN[, !(colnames(diabetesTRAIN) %in% c("sex^2"))]
-diabetesTEST1 <- diabetesTEST[, !(colnames(diabetesTEST) %in% c("sex^2"))]
+diabetesTRAIN <- diabetesTRAIN[, !(colnames(diabetesTRAIN) %in% c("sex^2"))]
+diabetesTEST <- diabetesTEST[, !(colnames(diabetesTEST) %in% c("sex^2"))]
+dim(diabetesTRAIN)
+dim(diabetesTEST)
 ```
 
 
@@ -7419,10 +7423,10 @@ RegClasica <- function(Y,X,beta0,sigma0,sig20,nu0,B){
 ```
 
 ```{r}
-diabetesTRAIN1 <- as.data.frame(diabetesTRAIN1)
+diabetesTRAIN <- as.data.frame(diabetesTRAIN)
 
-(Y <- diabetesTRAIN1$y)
-(X <- as.matrix(diabetesTRAIN1[,-1]))
+(Y <- diabetesTRAIN$y)
+(X <- as.matrix(diabetesTRAIN[,-1]))
 (n <- dim(X)[1])
 (p <- dim(X)[2])
 
@@ -7463,51 +7467,6 @@ plot(chainPrevUnitaria$BETA[,14], type = "p", pch = ".", xlab = "Iteración")
 plot(chainPrevUnitaria$BETA[,3], type = "p", pch = ".", xlab = "Iteración")
 
 plot(chainPrevUnitaria$SIG2, type = "p", pch = ".", xlab = "Iteración")
-```
-
-#### Puntos
-
-```{r}
-# 1 
-
-
-diabetesTEST1 <- as.data.frame(diabetesTEST1)
-
-# Calcular las predicciones
-(beta_hat_1 <- colMeans(chainPrevUnitaria$BETA))
-
-X_test <- as.matrix(diabetesTEST1[,-1])
-
-Y_pred_1a <- X_test %*% beta_hat_1
-
-
-plot(diabetesTEST1$y, Y_pred_1a, main = "Predicted vs. Actual", xlab = "Actual", ylab = "Predicted")
-
-
-MAE <- mean(abs(diabetesTEST1$y - Y_pred_1a))
-print(paste("Mean Absolute Error: ", MAE))
-
-
-
-
-
-par(mfrow = c(2, 2))
-
-plot(y_test, y_pred_1, main = "Modelo 1")
-abline(0, 1, col = "red")
-eam_1 = mean(abs(y_test - y_pred_1))
-mtext(paste("EAM:", round(eam_1, 3)), side = 3)
-
-plot(y_test, y_pred_2, main = "Modelo 2")
-abline(0, 1, col = "red")
-eam_2 = mean(abs(y_test - y_pred_2))
-mtext(paste("EAM:", round(eam_2, 3)), side = 3)
-
-# Visualización
-par(mfrow=c(2, 2))  # Configura un layout de 2x2 para los gráficos
-plot(chainPrevUnitaria )
-abline(0, 1, col="red")  # Línea y_test = y_pred
-
 ```
 
 
@@ -7578,8 +7537,7 @@ plot(chainPreviag$SIG2, type = "p", pch = ".", xlab = "Iteración")
 
 ```
 
-
-###### Rigida
+### Rigida
 
 
 ```{r}
@@ -7614,6 +7572,7 @@ RegresionRigida <- function(y,X,B,s20,nu0,a0,b0){
      beta <- mvtnorm::rmvnorm(1,mean = Vbeta%*%(1/s2*Xty),sigma = Vbeta)
      
     #sigma^2
+     betatbeta <- beta%*%t(beta)
      yhat <- X%*%t(beta) 
      s2 <- 1/rgamma(n = 1,shape = nun ,rate = 0.5*(nu0Xs20+lambda*betatbeta+sum((y-yhat)^2)))
   
@@ -7654,8 +7613,6 @@ set.seed(1010)
 tictoc::tic()
 cadenaRegRigida <- RegresionRigida(y,X,B,s20,nu0,a0,b0)
 tictoc::toc()
-
-
 ```
 
 ```{r}
@@ -7855,7 +7812,190 @@ mtext(paste("EAM:", round(eam_2, 3)), side = 3)
 par(mfrow = c(1, 1))
 
 ```
+## Errores correlacionados
+
+```{r}
+RegErroresCor <- function(y, X, B, delta) {
+  # Inicialización de matrices y variables
+  OUT <- matrix(data = NA, nrow = (B-1000)/4, ncol = p+2) 
+  LL <- matrix(data = NA, nrow = (B-1000)/4, ncol = 1)
+  ac <- 0
+  cont <- 1
+
+  # Datos
+  n <- nrow(X)
+  DY <- abs(outer(1:n, 1:n, "-"))
+  p <- ncol(X)
+
+  # Valores iniciales
+  lmfit <- lm(y ~ -1 + X)
+  fit.gls <- gls(y ~ X, correlation = corARMA(p = 1), method = "ML")
+  beta <- lmfit$coef
+  s2 <- summary(lmfit)$sigma^2
+  phi <- acf(lmfit$res, plot = FALSE)$acf[2]
+  beta_ols <- solve(t(X) %*% X) %*% t(X) %*% y
+  sig2_ols <- sum((y - X %*% beta_ols)^2) / (n - p)
+
+  # Previas
+  nu0 <- 1
+  s20 <- sig2_ols
+  T0 <- diag(1/50, nrow = p)
+
+  # Función auxiliar
+  tr <- function(X) sum(diag(X))
+
+  # Cálculos iniciales
+  nun <- 0.5 * (nu0 + n)
+  nu0xs20 <- nu0 * s20
+  tX <- t(X)
+
+  for (b in 1:B) {
+    # Simulación beta
+    Cor <- phi^DY
+    iCor <- solve(Cor)
+    tXicor <- tX %*% iCor
+    V.beta <- solve(tXicor %*% X / s2 + T0)
+    E.beta <- V.beta %*% (tXicor %*% y / s2)
+    beta <- t(rmvnorm(1, E.beta, V.beta))
+
+    # Simulación sigma^2
+    yXbeta <- y - X %*% beta
+    s2 <- 1/rgamma(1, nun, (nu0xs20 + t(yXbeta) %*% iCor %*% (yXbeta)) / 2)
+
+    # Simulación rho (Metropolis)
+    # Propuesta
+    phi.p <- abs(runif(1, phi - delta, phi + delta))
+    phi.p <- min(phi.p, 2 - phi.p)
+
+    # Tasa de aceptación
+    Cor.p <- phi.p^DY
+    iCor.p <- solve(Cor.p)
+    lr <- -0.5 * (determinant(Cor.p, log = TRUE)$mod - determinant(Cor, log = TRUE)$mod +
+                  tr((yXbeta) %*% t(yXbeta) %*% (iCor.p - iCor) / s2))
+
+    # Actualizar valor
+    if (log(runif(1)) < lr) {
+      phi <- phi.p
+      ac <- ac + 1
+      Cor <- Cor.p
+      iCor <- solve(Cor)
+    }
+
+    if (b > 1000 && b %% 4 == 0) {
+      # Almacenar resultados
+      OUT[cont, ] <- c(beta, s2, phi)
+      LL[cont] <- mvtnorm::dmvnorm(x = y, mean = X %*% beta, sigma = s2 * Cor, log = TRUE)
+      cont <- cont + 1
+    }
+  }
+
+  OUT <- as.data.frame(OUT)
+  colnames(OUT) <- c(paste0("beta", 1:p), "sigma^2", "lambda")
+  return(list(OUT = OUT, LL=LL, tasa = ac))
+}
+
+```
+
+
+```{r}
+B<-41000
+delta<-0.325
+set.seed(1010)
+tictoc::tic()
+cadenaErroresCor<-RegErroresCor(y,X,B,delta)
+tictoc::toc()
+```
+
+```{r}
+plot(x = 1:250, y =  unlist(cadenaErroresCor1$LL),type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud")
+```
 
 
 
+```{r}
+save(cadenaErroresCor,file="cadenaErroresCor.Rdata")
+```
+
+## Puntos
+
+```{r}
+# 1)
+# 
+# diabetesTEST1 <- as.data.frame(diabetesTEST1)
+# 
+# # Calcular las predicciones
+# (beta_hat_1 <- colMeans(chainPrevUnitaria$BETA))
+# 
+# X_test <- as.matrix(diabetesTEST1[,-1])
+# 
+# Y_pred_1a <- X_test %*% beta_hat_1
+# 
+# 
+# plot(diabetesTEST1$y, Y_pred_1a, main = "Predicted vs. Actual", xlab = "Actual", ylab = "Predichod")
+# 
+# 
+# MAE <- mean(abs(diabetesTEST1$y - Y_pred_1a))
+# print(paste("Mean Absolute Error: ", MAE))
+# 
+# 
+# 
+# 
+# 
+# par(mfrow = c(2, 2))
+# 
+# plot(y_test, y_pred_1, main = "Modelo 1")
+# abline(0, 1, col = "red")
+# eam_1 = mean(abs(y_test - y_pred_1))
+# mtext(paste("EAM:", round(eam_1, 3)), side = 3)
+# 
+# plot(y_test, y_pred_2, main = "Modelo 2")
+# abline(0, 1, col = "red")
+# eam_2 = mean(abs(y_test - y_pred_2))
+# mtext(paste("EAM:", round(eam_2, 3)), side = 3)
+# 
+# # Visualización
+# par(mfrow=c(2, 2))  # Configura un layout de 2x2 para los gráficos
+# plot(chainPrevUnitaria )
+# abline(0, 1, col="red")  # Línea y_test = y_pred
+
+Xtest <- as.matrix(diabetesTEST[,-1])
+Ytest <- diabetesTEST[,1]
+n <- nrow(Xtest)
+
+#prevUnitaria
+beta_prevUnitaria <- as.matrix(colMeans(chainPrevUnitaria$BETA))
+yprevUnitaria <- Xtest%*%beta_prevUnitaria
+
+EAM_prevUnitaria <- round(sum(abs(Ytest-yprevUnitaria))/n,digits = 3) 
+
+plot(Ytest, yprevUnitaria, col = "darkblue", pch = 16, xlab = expression(y[test]), ylab = expression(hat(y)[test]), main = paste("Modelo 1: Regresión Previa Unitaria - EAM =", EAM_prevUnitaria))
+abline(a = 0, b = 1, col = "red", lwd = 2)
+
+#previaG
+beta_prevG <- as.matrix(colMeans(chainPreviag$BETA))
+yprevG <- Xtest%*%beta_prevG
+
+EAM_prevG <- round(sum(abs(Ytest-yprevG))/n,digits = 3) 
+
+plot(Ytest, yprevG, col = "orange", pch = 16, xlab = expression(y[test]), ylab = expression(hat(y)[test]), main = paste("Modelo 2: Regresión Previa G - EAM =", EAM_prevG))
+abline(a = 0, b = 1, col = "red", lwd = 2)
+
+#Rigida
+beta_Rigida <- as.matrix(colMeans(cadenaRegRigida$BETA))
+yRigida <- Xtest%*%beta_Rigida
+
+EAM_Rigida <- round(sum(abs(Ytest-yRigida))/n,digits = 3) 
+
+plot(Ytest, yRigida, col = "gray", pch = 16, xlab = expression(y[test]), ylab = expression(hat(y)[test]), main = paste("Modelo 3: Regresión Rigida - EAM =", EAM_Rigida))
+abline(a = 0, b = 1, col = "red", lwd = 2)
+
+#Errores correlacionados
+beta_ErroresCorr <- as.matrix(colMeans(cadenaErroresCor$BETA))
+yErroresCor <- Xtest%*%beta_ErroresCorr
+
+EAM_Errores_Cor <- round(sum(abs(Ytest-yErroresCor))/n,digits = 3) 
+
+plot(Ytest, yErroresCor, col = "green", pch = 16, xlab = expression(y[test]), ylab = expression(hat(y)[test]), main = paste("Modelo 4: Regresión con Errores Correlacionados - EAM =", EAM_Rigida))
+abline(a = 0, b = 1, col = "red", lwd = 2)
+ñp```
 
