@@ -7907,7 +7907,7 @@ tictoc::toc()
 ```
 
 ```{r}
-plot(x = 1:250, y =  unlist(cadenaErroresCor1$LL),type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud")
+plot(x = 1:10000, y =  unlist(cadenaErroresCor$LL),type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud")
 ```
 
 
