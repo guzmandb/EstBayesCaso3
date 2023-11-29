@@ -13,11 +13,139 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #install.packages("mvtnorm")
+# install.packages('DirichletReg')
+# 
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("DirichletMultinomial")
 library(mvtnorm)
 library(ggplot2)
 library(nlme)
 library(latex2exp)
+library(DirichletReg)
+library(DirichletMultinomial)
 ```
+
+# Parte 1 :Alcaldía
+
+
+```{r}
+Candidato <- c("C. F. Galán", "G. Bolivar", "J. D. Oviedo", "D. Molano", "R. Lara", "J. L. Vargas", "J. E. Robledo", "N. Ramos", "R. A. Quintero", "Voto en Blanco")
+Cantidad <- c(493, 257, 227, 48, 41, 38, 28, 11, 3, 54)
+Proporcion <- c(0.411, 0.214, 0.189, 0.040, 0.034, 0.032, 0.023, 0.009, 0.003, 0.045)
+Alcaldia <- data.frame(Candidato, Cantidad, Proporcion)
+```
+
+```{r}
+###Muestreador
+MODalcaldia <- function(S,data,Z,M,delta){
+
+#calculos auxiliares  
+ac <- 0
+cont <- 1
+
+#hiperparametros
+a0 <- 1
+b0 <- 1
+
+#almacenamiento
+THETA <- matrix(data = NA, nrow = (S-1000)/10, ncol = Z+1)
+LL    <- matrix(data = NA, nrow = (S-1000)/10, ncol = 1)
+#inicalizar los parámetros
+alpha <- rgamma(1, shape = a0, rate = b0)
+
+for (s in 1:S) {
+  #actualizar theta
+  theta <- rdirichlet(n = 1, alpha = exp(alpha)+M)
+  
+  #actualizar alpha
+  #propuesta
+  alpha.p   <- rnorm(n = 1, mean = alpha, sd = sqrt(delta))
+  #tasa de aceptación
+  log.r <- (sum(ddirichlet(x = theta, alpha = rep(exp(alpha.p),Z), log = TRUE) - ddirichlet(x = theta, alpha = rep(exp(alpha),Z), log = TRUE) 
+                + dgamma(x = exp(alpha.p), shape = a0, rate = b0, log = TRUE) - dgamma(x = exp(alpha), shape = a0, rate = b0, log = TRUE)
+                + alpha.p - alpha))
+  if(runif(1) < exp(log.r)){
+    alpha <- alpha.p
+    ac <- ac+1
+  }
+  
+  #Almacenar
+  if(s > 1000 && s%%10 == 0){
+    THETA[cont,] <- c(theta, exp(alpha))
+    LL[cont,] <- sum(dmultinom(x = M, prob = theta, log = T))
+    cont <- 1 + cont
+  }
+}
+colnames(THETA) <- c(paste0("theta",1:Z), "alpha")
+colnames(LL) <- c("ll")
+
+THETA <- as.data.frame(THETA)
+return(list(THETA = THETA,LL = LL,ac=ac))
+}
+```
+
+```{r}
+#S,data,Z,M,delta
+
+S <- 101000
+Z <- length(Alcaldia$Proporcion)
+M <- Alcaldia$Cantidad
+delta <- 1.15
+
+set.seed(42)
+tictoc::tic()
+CadenaAlcaldia <- MODalcaldia(S,Alcaldia,Z,M,delta)
+tictoc::toc()
+```
+
+
+```{r}
+plot(CadenaAlcaldia$LL,main = "Modelo Encuestas Alcaldia",xlab = "Iteración",ylab = "Log-Verosimilitud")
+(tasa_aceptacion_alcaldia <- CadenaAlcaldia$ac/S)
+```
+
+
+```{r}
+mediaAlc <- round(colMeans(CadenaAlcaldia$THETA[,1:10]),digits = 3)
+ICAlc <- round(apply(CadenaAlcaldia$THETA[, 1:10], 2, function(x) quantile(x, c(0.025, 0.975))),digits = 3)
+resultado <- data.frame(Media = mediaAlc*100, Li = ICAlc[1, ]*100, Ls = ICAlc[2, ]*100)
+rownames(resultado) <- Candidato
+resultado_final <- resultado[1:3,]
+
+Obs_registraduría <- c(49.02,20.11,18.71)
+(resultado_final <- cbind(resultado_final,Obs_registraduría))
+```
+
+```{r}
+ids2 <- rownames(resultado_final)
+that <- resultado_final$Media
+obj <- resultado_final$Obs_registraduría
+ic1  <- resultado_final$Li
+ic2 <- resultado_final$Ls
+ranking <- order(that) 
+ids2 <- ids2[ ranking]
+that <- that[ ranking]
+ic1  <- ic1[ ranking]
+ic2 <- ic2[ ranking]
+obj <- obj[ ranking]
+# gráfico
+par(mar = c(3, 6, 1, 1), mgp = c(2, 0.5, 0))
+plot(NA, NA, xlab = "Puntaje", ylab = "", main = "Ranking", xlim = c(15,50),ylim = c(1,3), cex.axis = 0.75, yaxt = "n")
+axis(side = 2, at = 1:3, labels = ids2, las = 2)
+abline(h = 1:3, col = "lightgray", lwd = 1)
+for (j in 1:3) {
+  segments(x0 = ic1[j], y0 = j, x1 = ic2[j], y1 = j,col = "red")
+  lines(x = that[j], y = j, type = "p", pch = 16, cex = 0.7,col = "green")
+  lines(x = obj[j], y = j, type = "p", pch = 16, cex = 0.7,col = "blue")
+}
+
+legend("bottomright", legend = c("Est. Puntual", "R.O Registraduría", "IC al 95%"),
+       col = c("green", "blue", "red"), pch = c(16, 16, NA), lty = c(NA, NA, 1),
+       title = "Leyenda", cex = 0.8)
+```
+
 
 
 # Datos de diabetes
@@ -7944,6 +8072,7 @@ sigma2_hat_1 <- mean(chainPrevUnitaria$SIG2)
 
 lpyth_m1 <- c(mvtnorm::dmvnorm(x = ytrain, mean = xtrain%*%beta_prevUnitaria, sigma = diag(x = sigma2_hat_1,nrow = n,ncol = n)))
 pDIC_m1    <- 2*(lpyth_m1 - mean(LP1))
+print("m1:")
 (dic_m1     <- round(-2*lpyth_m1 + 2*pDIC_m1,digits = 3))
 
 ##DIC previa unitaria
@@ -7953,6 +8082,7 @@ sigma2_hat_2 <- mean(chainPreviag$SIG2)
 
 lpyth_m2 <- c(mvtnorm::dmvnorm(x = ytrain, mean = xtrain%*%beta_prevG, sigma = diag(x = sigma2_hat_2,nrow = n,ncol = n)))
 pDIC_m2    <- 2*(lpyth_m2 - mean(LP2))
+print("m2:")
 (dic_m2     <- round(-2*lpyth_m2 + 2*pDIC_m2,digits = 3))
 
 ##DIC Rigida
@@ -7963,20 +8093,38 @@ sigma2_hat_3 <- mean(unlist(cadenaRegRigida$BETA$`sigma^2`))
 
 lpyth_m3 <- c(mvtnorm::dmvnorm(x = ytrain, mean = xtrain%*%beta_Reg_Rigida, sigma = diag(x = sigma2_hat_3,nrow = n,ncol = n)))
 pDIC_m3    <- 2*(lpyth_m3 - mean(LP3))
+print("m3:")
 (dic_m3     <- round(-2*lpyth_m3 + 2*pDIC_m3,digits = 3))
 
 ##DIC Errores Correlacionados
 
-LP4  <- as.numeric(unlist(cadenaErroresCor$LL))
-beta_Reg_Err_Corr <- as.matrix(colMeans(cadenaErroresCor$OUT[,1:64]))
-sigma2_hat_4 <- mean(unlist(cadenaErroresCor$OUT$`sigma^2`))
+DY <- abs(outer((1:n),(1:n) ,"-"))
+LP4   <- as.numeric(cadenaErroresCor$LL)
+beta_errorescor <- as.matrix(colMeans(cadenaErroresCor$OUT[,1:64]))
+sigma2_hat_4 <- mean(cadenaErroresCor$OUT$`sigma^2`)
+rho_hat <- mean(cadenaErroresCor$OUT$lambda)
 
-
-lpyth_m4 <- c(mvtnorm::dmvnorm(x = ytrain, mean = xtrain%*%beta_Reg_Err_Corr[i,], sigma  =    cadenaErroresCor$OUT$`sigma^2`[i]*(cadenaErroresCor$OUT$lambda[i]^DY)))
-pDIC_m4    <- 2*(lpyth_m3 - mean(LP3))
-(dic_m3     <- round(-2*lpyth_m3 + 2*pDIC_m3,digits = 3))
+lpyth_m4 <- c(mvtnorm::dmvnorm(x = ytrain, mean = xtrain%*%beta_errorescor, sigma = sigma2_hat_4*(rho_hat^DY)))
+pDIC_m4    <- 2*(lpyth_m4 - mean(LP4))
+print("m4:")
+(dic_m4     <- round(-2*lpyth_m4 + 2*pDIC_m4,digits = 3))
 
 ```
 
-## Final
+## Anexo
+
+```{r}
+par(mfrow = c(2, 2))
+
+plot(x = 1:10000, y =  unlist(chainPrevUnitaria$LL),col="black",type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud",ylim = c(-390, -340),main="Modelo 1: Regresión\nClásica Previa Unitaria")
+
+plot(x = 1:10000, y =  unlist(chainPreviag$LL),col="red",type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud",ylim = c(-390, -340),main="Modelo 2: Regresión\nClásica Previa g")
+
+plot(x = 1:10000, y =  unlist(cadenaRegRigida$LL),col="blue",type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud",ylim = c(-390, -340),main=("Modelo 3: Regresión\nRigida"))
+
+plot(x = 1:10000, y =  unlist(cadenaErroresCor$LL),col="darkgreen",type = "p", pch = ".", xlab = "Iteración", ylab = "Log-verosimilitud",ylim = c(-390, -340),main = "Modelo 4: Regresión con Errores\nCorrelacionados")
+```
+
+
+
 
